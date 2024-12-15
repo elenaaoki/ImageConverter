@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TGA to JPG/PNG Converter</title>
+    <style>
+       body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 4px;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .drop-zone:hover {
+            background-color: #f8f8f8;
+        }
+
+        .drop-zone.dragover {
+            background-color: #e1e1e1;
+            border-color: #999;
+        }
+
+        .controls {
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        select, button {
+            padding: 8px 16px;
+            margin: 0 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: white;
+            cursor: pointer;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .preview-container {
+            margin: 20px auto;
+            text-align: center;
+            max-width: 500px;
+        }
+
+        #preview {
+            max-width: 100%;
+            height: auto;
+            display: none;
+            margin: 0 auto;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .error {
+            color: red;
+            text-align: center;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TGA to JPG/PNG Converter</h1>
+        <div id="dropZone" class="drop-zone">
+            <p>Drag and drop your TGA file here or click to select</p>
+            <input type="file" id="fileInput" accept=".tga" style="display: none">
+        </div>
+        <div class="controls">
+            <select id="formatSelect">
+                <option value="image/jpeg">JPG</option>
+                <option value="image/png">PNG</option>
+            </select>
+            <button id="convertBtn" disabled>Convert</button>
+            <button id="downloadBtn" disabled>Download</button>
+        </div>
+        <div id="error" class="error"></div>
+        <canvas id="preview" style="display: none;"></canvas>
+    </div>
+
+    <script>
+        class TGAReader {
+            constructor(arrayBuffer) {
+                this.data = new Uint8Array(arrayBuffer);
+                this.offset = 0;
+            }
+
+            readHeader() {
+                const header = {
+                    idLength: this.data[0],
+                    colorMapType: this.data[1],
+                    imageType: this.data[2],
+                    colorMapOrigin: this.data[3] | (this.data[4] << 8),
+                    colorMapLength: this.data[5] | (this.data[6] << 8),
+                    colorMapDepth: this.data[7],
+                    xOrigin: this.data[8] | (this.data[9] << 8),
+                    yOrigin: this.data[10] | (this.data[11] << 8),
+                    width: this.data[12] | (this.data[13] << 8),
+                    height: this.data[14] | (this.data[15] << 8),
+                    bitsPerPixel: this.data[16],
+                    imageDescriptor: this.data[17]
+                };
+                this.offset = 18;
+                return header;
+            }
+
+            readPixels(header) {
+                const pixelCount = header.width * header.height;
+                const pixels = new Uint8ClampedArray(pixelCount * 4);
+                let pixelIndex = 0;
+
+                // Skip ID field
+                this.offset += header.idLength;
+
+                // Handle uncompressed RGB/RGBA
+                if (header.imageType === 2) {
+                    for (let i = 0; i < pixelCount; i++) {
+                        const blue = this.data[this.offset++];
+                        const green = this.data[this.offset++];
+                        const red = this.data[this.offset++];
+                        const alpha = header.bitsPerPixel === 32 ? this.data[this.offset++] : 255;
+
+                        pixels[pixelIndex++] = red;
+                        pixels[pixelIndex++] = green;
+                        pixels[pixelIndex++] = blue;
+                        pixels[pixelIndex++] = alpha;
+                    }
+                }
+
+                return pixels;
+            }
+        }
+
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const convertBtn = document.getElementById('convertBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const formatSelect = document.getElementById('formatSelect');
+        const preview = document.getElementById('preview');
+        const errorDiv = document.getElementById('error');
+
+        let currentFile = null;
+        let convertedBlob = null;
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            handleFile(file);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            handleFile(file);
+        });
+
+        function handleFile(file) {
+            if (!file.name.toLowerCase().endsWith('.tga')) {
+                showError('Please select a TGA file');
+                return;
+            }
+
+            currentFile = file;
+            convertBtn.disabled = false;
+            showError('');
+        }
+
+        function showError(message) {
+            errorDiv.textContent = message;
+        }
+
+        convertBtn.addEventListener('click', async () => {
+            if (!currentFile) return;
+
+            try {
+                const arrayBuffer = await currentFile.arrayBuffer();
+                const tgaReader = new TGAReader(arrayBuffer);
+                const header = tgaReader.readHeader();
+                const pixels = tgaReader.readPixels(header);
+
+                preview.width = header.width;
+                preview.height = header.height;
+                const ctx = preview.getContext('2d');
+                const imageData = new ImageData(pixels, header.width, header.height);
+                ctx.putImageData(imageData, 0, 0);
+
+                preview.style.display = 'block';
+                downloadBtn.disabled = false;
+
+                // Convert to selected format
+                preview.toBlob((blob) => {
+                    convertedBlob = blob;
+                }, formatSelect.value, 0.9);
+            } catch (error) {
+                showError('Error converting file: ' + error.message);
+            }
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            if (!convertedBlob) return;
+
+            const extension = formatSelect.value === 'image/jpeg' ? 'jpg' : 'png';
+            const fileName = currentFile.name.replace('.tga', '.' + extension);
+            const url = URL.createObjectURL(convertedBlob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            a.click();
+            
+            URL.revokeObjectURL(url);
+        });
+    </script>
+</body>
+</html>
