@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Converter Tool</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f9;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 50px auto;
+      background: #fff;
+      padding: 20px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-top: 15px;
+      color: #555;
+    }
+    input[type="file"], input[type="text"] {
+      display: block;
+      margin: 10px 0;
+      width: 95%;
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background: #f4f4f9;
+    }
+    select, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 16px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background: #f4f4f9;
+      transition: 0.3s;
+    }
+    select:focus, button:hover {
+      background: #eaeaea;
+    }
+    .output {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .output img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 5px;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 12px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Image Converter Tool</h1>
+    <label for="upload">Upload Image:</label>
+    <input type="file" id="upload" accept="image/*">
+
+    <label for="filename">File Name:</label>
+    <input type="text" id="filename" placeholder="Tulis nama filemu di sini">
+
+    <label for="format">Convert to:</label>
+    <select id="format">
+      <option value="jpeg">JPEG</option>
+      <option value="jpg">JPG</option> <!-- Tambahan opsi untuk JPG -->
+      <option value="png">PNG</option>
+      <option value="webp">WEBP</option>
+      <option value="bmp">BMP</option>
+      <option value="gif">GIF</option>
+      <option value="tiff">TIFF</option>
+    </select>
+    <button id="convertBtn">Convert</button>
+    <div class="output" id="output"></div>
+  </div>
+  <div class="footer"><a href="https://www.chapteria.com/">Chapteria</a></div>
+
+  <script>
+    const uploadInput = document.getElementById("upload");
+    const filenameInput = document.getElementById("filename");
+    const formatSelect = document.getElementById("format");
+    const convertBtn = document.getElementById("convertBtn");
+    const outputDiv = document.getElementById("output");
+
+    // Update filename input when a file is selected
+    uploadInput.addEventListener("change", () => {
+      const file = uploadInput.files[0];
+      if (file) {
+        const fileName = file.name.split('.').slice(0, -1).join('.'); // Remove file extension
+        filenameInput.value = fileName;
+      }
+    });
+
+    convertBtn.addEventListener("click", async () => {
+      const file = uploadInput.files[0];
+      if (!file) {
+        alert("Please upload an image first!");
+        return;
+      }
+
+      let targetFormat = formatSelect.value;
+      if (targetFormat === "jpg") targetFormat = "jpeg"; // Map JPG to JPEG internally
+
+      const customFileName = filenameInput.value || "converted";
+
+      // Load image into a canvas for conversion
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const img = new Image();
+        img.onload = async () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0);
+
+          // Convert image to target format
+          try {
+            const convertedDataUrl = canvas.toDataURL(`image/${targetFormat}`);
+            outputDiv.innerHTML = `
+              <p>Converted Image:</p>
+              <img src="${convertedDataUrl}" alt="Converted Image">
+              <a download="${customFileName}.${formatSelect.value}" href="${convertedDataUrl}" style="display:block;margin-top:10px;">Download</a>`;
+          } catch (error) {
+            alert("Conversion failed. This format might not be supported in your browser.");
+          }
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  </script>
+</body>
+</html>
