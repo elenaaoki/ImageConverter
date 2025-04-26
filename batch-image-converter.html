@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Batch Image Converter Tool</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f9;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 800px;
+      margin: 50px auto;
+      background: #fff;
+      padding: 20px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-top: 15px;
+      color: #555;
+    }
+    input[type="file"], input[type="text"] {
+      display: block;
+      margin: 10px 0;
+      width: 95%;
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background: #f4f4f9;
+    }
+    select, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 16px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background: #f4f4f9;
+      transition: 0.3s;
+    }
+    select:focus, button:hover {
+      background: #eaeaea;
+    }
+    .output {
+      margin-top: 20px;
+    }
+    .file-list {
+      margin: 15px 0;
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 10px;
+    }
+    .file-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+    }
+    .file-item:last-child {
+      border-bottom: none;
+    }
+    .file-preview {
+      width: 50px;
+      height: 50px;
+      object-fit: cover;
+      border-radius: 4px;
+    }
+    .converted-images {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .converted-item {
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 10px;
+      text-align: center;
+    }
+    .converted-item img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 5px;
+      margin-bottom: 10px;
+    }
+    .file-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+    .download-all {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      margin-top: 20px;
+    }
+    .download-all:hover {
+      background: #45a049;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 12px;
+      color: #888;
+    }
+    .progress-container {
+      margin-top: 15px;
+      display: none;
+    }
+    .progress-bar {
+      height: 20px;
+      background-color: #f0f0f0;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .progress {
+      height: 100%;
+      background-color: #4CAF50;
+      width: 0%;
+      transition: width 0.3s;
+    }
+    .progress-text {
+      text-align: center;
+      font-size: 14px;
+    }
+    .download-link {
+      display: inline-block;
+      padding: 5px 10px;
+      background: #f4f4f9;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      text-decoration: none;
+      color: #333;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+    .download-link:hover {
+      background: #eaeaea;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Batch Image Converter Tool</h1>
+    <label for="upload">Upload Images:</label>
+    <input type="file" id="upload" accept="image/*" multiple>
+
+    <div class="file-list" id="fileList">
+      <p>No files selected</p>
+    </div>
+
+    <label for="format">Convert all to:</label>
+    <select id="format">
+      <option value="jpeg">JPEG</option>
+      <option value="jpg">JPG</option>
+      <option value="png">PNG</option>
+      <option value="webp">WEBP</option>
+      <option value="bmp">BMP</option>
+      <option value="gif">GIF</option>
+      <option value="tiff">TIFF</option>
+    </select>
+
+    <div class="progress-container" id="progressContainer">
+      <div class="progress-bar">
+        <div class="progress" id="progressBar"></div>
+      </div>
+      <div class="progress-text" id="progressText">Converting 0/0 images...</div>
+    </div>
+
+    <button id="convertBtn">Convert All Images</button>
+    <button id="downloadAllBtn" class="download-all" style="display: none;">Download All</button>
+    
+    <div class="output" id="output">
+      <div class="converted-images" id="convertedImages"></div>
+    </div>
+  </div>
+  <div class="footer"><a href="https://www.chapteria.com/">Chapteria</a></div>
+
+  <!-- Include JSZip library for creating zip files -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>
+    const uploadInput = document.getElementById("upload");
+    const fileListDiv = document.getElementById("fileList");
+    const formatSelect = document.getElementById("format");
+    const convertBtn = document.getElementById("convertBtn");
+    const downloadAllBtn = document.getElementById("downloadAllBtn");
+    const convertedImagesDiv = document.getElementById("convertedImages");
+    const progressContainer = document.getElementById("progressContainer");
+    const progressBar = document.getElementById("progressBar");
+    const progressText = document.getElementById("progressText");
+
+    let selectedFiles = [];
+    let convertedFiles = [];
+
+    // Update file list when files are selected
+    uploadInput.addEventListener("change", () => {
+      selectedFiles = Array.from(uploadInput.files);
+      
+      if (selectedFiles.length === 0) {
+        fileListDiv.innerHTML = "<p>No files selected</p>";
+        return;
+      }
+
+      let fileListHTML = "";
+      selectedFiles.forEach((file, index) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const fileItem = document.getElementById(`file-item-${index}`);
+          if (fileItem) {
+            const img = document.createElement("img");
+            img.src = e.target.result;
+            img.className = "file-preview";
+            fileItem.prepend(img);
+          }
+        };
+        reader.readAsDataURL(file);
+
+        fileListHTML += `
+          <div class="file-item" id="file-item-${index}">
+            <div>
+              <span>${file.name}</span>
+              <span style="color: #888; font-size: 12px;">(${formatFileSize(file.size)})</span>
+            </div>
+            <button onclick="removeFile(${index})" style="width: auto; padding: 5px 10px;">Remove</button>
+          </div>
+        `;
+      });
+
+      fileListDiv.innerHTML = fileListHTML;
+      
+      // Reset converted files when new files are selected
+      convertedFiles = [];
+      convertedImagesDiv.innerHTML = "";
+      downloadAllBtn.style.display = "none";
+    });
+
+    // Function to remove a file from the selection
+    window.removeFile = (index) => {
+      selectedFiles.splice(index, 1);
+      
+      // Update the file input (this is tricky as file inputs can't be programmatically set)
+      // So we'll just update the visual list
+      if (selectedFiles.length === 0) {
+        fileListDiv.innerHTML = "<p>No files selected</p>";
+        uploadInput.value = ""; // Clear the file input
+      } else {
+        // Re-render the file list
+        let fileListHTML = "";
+        selectedFiles.forEach((file, idx) => {
+          fileListHTML += `
+            <div class="file-item" id="file-item-${idx}">
+              <div>
+                <img src="${URL.createObjectURL(file)}" class="file-preview">
+                <span>${file.name}</span>
+                <span style="color: #888; font-size: 12px;">(${formatFileSize(file.size)})</span>
+              </div>
+              <button onclick="removeFile(${idx})" style="width: auto; padding: 5px 10px;">Remove</button>
+            </div>
+          `;
+        });
+        fileListDiv.innerHTML = fileListHTML;
+      }
+      
+      // Reset converted files when selection changes
+      convertedFiles = [];
+      convertedImagesDiv.innerHTML = "";
+      downloadAllBtn.style.display = "none";
+    };
+
+    // Format file size to human-readable format
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + " bytes";
+      else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+      else return (bytes / 1048576).toFixed(1) + " MB";
+    }
+
+    // Truncate filename to a reasonable length
+    function truncateFilename(filename, maxLength = 15) {
+      if (filename.length <= maxLength) return filename;
+      
+      const extension = filename.split('.').pop();
+      const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
+      
+      if (nameWithoutExt.length <= maxLength - 3) return filename;
+      
+      return nameWithoutExt.substring(0, maxLength - 3) + '...' + (extension ? '.' + extension : '');
+    }
+
+    // Convert all selected images
+    convertBtn.addEventListener("click", async () => {
+      if (selectedFiles.length === 0) {
+        alert("Please upload at least one image first!");
+        return;
+      }
+
+      // Reset previous conversions
+      convertedFiles = [];
+      convertedImagesDiv.innerHTML = "";
+      
+      // Show progress bar
+      progressContainer.style.display = "block";
+      progressBar.style.width = "0%";
+      progressText.textContent = `Converting 0/${selectedFiles.length} images...`;
+      
+      let targetFormat = formatSelect.value;
+      if (targetFormat === "jpg") targetFormat = "jpeg"; // Map JPG to JPEG internally
+
+      // Process each file
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        const fileName = file.name.split('.').slice(0, -1).join('.'); // Remove file extension
+        const shortFileName = truncateFilename(fileName);
+        const outputFileName = `${fileName}.${formatSelect.value}`;
+        const displayFileName = `${shortFileName}.${formatSelect.value}`;
+        
+        try {
+          const convertedDataUrl = await convertImage(file, targetFormat);
+          
+          // Store converted file info
+          convertedFiles.push({
+            name: outputFileName,
+            dataUrl: convertedDataUrl
+          });
+          
+          // Update progress
+          const progress = Math.round(((i + 1) / selectedFiles.length) * 100);
+          progressBar.style.width = `${progress}%`;
+          progressText.textContent = `Converting ${i + 1}/${selectedFiles.length} images...`;
+          
+          // Add to the display
+          const convertedItemDiv = document.createElement("div");
+          convertedItemDiv.className = "converted-item";
+          convertedItemDiv.innerHTML = `
+            <img src="${convertedDataUrl}" alt="Converted Image">
+            <div class="file-name" title="${outputFileName}">${displayFileName}</div>
+            <a download="${outputFileName}" href="${convertedDataUrl}" class="download-link">Download</a>
+          `;
+          convertedImagesDiv.appendChild(convertedItemDiv);
+        } catch (error) {
+          console.error("Error converting file:", file.name, error);
+          alert(`Failed to convert ${file.name}. This format might not be supported in your browser.`);
+        }
+      }
+      
+      // Hide progress bar and show download all button
+      progressContainer.style.display = "none";
+      if (convertedFiles.length > 0) {
+        downloadAllBtn.style.display = "block";
+      }
+    });
+
+    // Function to convert a single image
+    async function convertImage(file, format) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0);
+
+            try {
+              const convertedDataUrl = canvas.toDataURL(`image/${format}`);
+              resolve(convertedDataUrl);
+            } catch (error) {
+              reject(error);
+            }
+          };
+          img.onerror = reject;
+          img.src = reader.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Download all converted images as a zip file
+    downloadAllBtn.addEventListener("click", async () => {
+      if (convertedFiles.length === 0) {
+        alert("No converted images to download!");
+        return;
+      }
+
+      // Create a new JSZip instance
+      const zip = new JSZip();
+      
+      // Add each converted file to the zip
+      convertedFiles.forEach(file => {
+        // Convert data URL to blob
+        const byteString = atob(file.dataUrl.split(',')[1]);
+        const mimeString = file.dataUrl.split(',')[0].split(':')[1].split(';')[0];
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        
+        for (let i = 0; i < byteString.length; i++) {
+          ia[i] = byteString.charCodeAt(i);
+        }
+        
+        const blob = new Blob([ab], {type: mimeString});
+        zip.file(file.name, blob);
+      });
+      
+      // Generate the zip file
+      zip.generateAsync({type: "blob"})
+        .then(content => {
+          // Create a download link for the zip file
+          const zipUrl = URL.createObjectURL(content);
+          const downloadLink = document.createElement("a");
+          downloadLink.href = zipUrl;
+          downloadLink.download = `converted_images_${formatSelect.value}.zip`;
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
+          URL.revokeObjectURL(zipUrl);
+        })
+        .catch(error => {
+          console.error("Error creating zip file:", error);
+          alert("Failed to create zip file. Please try downloading images individually.");
+        });
+    });
+  </script>
+</body>
+</html>
